@@ -1,0 +1,273 @@
+<html>
+<head>
+<script>
+
+var items = {};
+
+function onLoad() {
+	for(let x in items) initItem(x);
+	for(let x in items)
+		if(items[x].key && items[x].parent)
+			items[items[x].parent].element.querySelector('.objects').appendChild(items[x].element);
+	if(typeof loadGame === 'function') loadGame();
+}
+
+function initItem(prop) {
+	let x = items[prop];
+	if(x.room) {
+		let e1 = document.createElement('div');
+		x.element = e1;
+		e1.insertAdjacentHTML('beforeend',`<div class='${x.back? 'lookat':'room'}'>${x.room}</div>`);
+		e1.insertAdjacentHTML('beforeend',`<div class='desc'>${x.desc}</div>`);
+		e1.insertAdjacentHTML('beforeend',`<div class='objects'></div>`);
+		e1.insertAdjacentHTML('beforeend',`<div class='exits'></div>`);
+		if(x.back)
+			e1.lastChild.insertAdjacentHTML('beforeend',listwrap(exit(x.back,'back')));
+		else if(x.exits)
+			e1.lastChild.insertAdjacentHTML('beforeend',
+				Object.keys(x.exits).map(y=>listwrap(exit(x.exits[y],y))).join(''));
+		if(x.start) document.querySelector('#room').appendChild(e1);
+	} else if(x.key) {
+		let e1 = document.createElement('span');
+		x.element = e1;
+		e1.insertAdjacentHTML('beforeend',`<span class='item' onclick='clickKey("${prop}")' draggable='true' ondragstart='startDragKey("${prop}")'>${x.key}</span>`);
+	}
+}
+
+function listwrap(s) { return `<span>${s}</span>`; }
+
+function exit(dest,dir) {
+	return `<span class='item' onclick='clickExit("${dest}")'>${dir}</span>`;
+}
+
+function chest(prop,name) {
+	return `<span class='item' ondragover='dragKeyOver("${prop}")' ondrop='dropKeyOnto("${prop}")'>${name}</span>`;
+}
+
+function code(prop,start,length) {
+	let v = items[prop].start;
+	items[prop].value = v;
+	if(start == undefined) {
+		start = 0; length = v.length;
+	}
+	let s = '';
+	for(; length > 0; start++,length--)
+		s += `<div class='code1 item' onclick='clickCode("${prop}",${start})'><div class='code2'>${v.charAt(start)}</div></div>`;
+	return `<div class='code'><div><br/><br/><br/></div>${s}</div>`;
+}
+
+function clickKey(prop) {
+	let e1 = items[prop].element;
+	if(e1.parentElement.classList.contains('objects'))
+		document.querySelector('#inven').appendChild(e1);
+	else if(items[prop].onclick)
+		items[prop].onclick();
+}
+
+function clickExit(prop) {
+	if(items[prop].onclick)
+		items[prop].onclick();
+	else
+		document.querySelector('#room>div').replaceWith(items[prop].element);
+}
+
+function clickCode(prop,n) {
+	let o = items[prop];
+	let v = o.dontmod;
+	if(o.stopped || v && v.charAt(n) != ' ') return;
+	v = items[prop].value;
+	let c = v.charAt(n);
+	let d = o.digits;
+	let i = d.indexOf(c)+1;
+	if(i == d.length) i = 0;
+	c = d.charAt(i);
+	v = v.substring(0,n)+c+v.substring(n+1);
+	o.value = v;
+	v = window.event.target;
+	if(v.classList.contains('code1')) v = v.firstChild
+	v.innerHTML = c;
+	if(items[prop].finish && items[prop].finish != items[prop].value)
+		return;
+	if(items[prop].onclick)
+		items[prop].onclick();
+}
+
+var dragkey;
+
+function startDragKey(prop) {
+	dragkey = prop;
+}
+
+function dragKeyOver(prop) {
+	if(prop == items[dragkey].chest)
+		window.event.preventDefault();
+}
+
+function dropKeyOnto(prop) {
+	items[dragkey].element.remove();
+	if(items[prop] && items[prop].onclick)
+		items[prop].onclick(dragkey);
+	dragkey = null;
+}
+
+</script>
+<style>
+
+body {
+	max-width: 650px;
+	margin: 0px auto;
+	background: #eeeeee;
+	font-size: 18px;
+}
+
+#screen {
+	font-family: monospace;
+	width: 60ch;
+	min-height: 25em;
+	background: white;
+	color: black;
+}
+
+.item { color: blue; cursor: pointer }
+.item:hover { background: lightgray }
+.item:active { color: red }
+
+.exits:not(:empty)::before { content: '\00000A'; white-space: pre }
+.exits>*:first-child::before { content: 'You can go ' }
+.exits>*::after { content: ', ' }
+.exits>*:nth-last-child(2)::after { content: ' or ' }
+.exits>*:last-child::after { content: '.' }
+
+.objects:not(:empty)::before { content: '\00000A'; white-space: pre }
+.objects>*:first-child::before { content: 'You see ' }
+.objects>*::after { content: ', ' }
+.objects>*:nth-last-child(2)::after { content: ' and ' }
+.objects>*:last-child::after { content: ' here.' }
+
+#inven:not(:empty)::before { content: '\00000A'; white-space: pre }
+#inven>*:first-child::before { content: 'You are carrying ' }
+#inven>*::after { content: ', ' }
+#inven>*:nth-last-child(2)::after { content: ' and ' }
+#inven>*:last-child::after { content: '.' }
+
+.room::before { content: '«' }
+.room::after { content: '»' }
+.lookat::before { content: '«Looking at ' }
+.lookat::after { content: '»' }
+
+.code {
+	display: inline-flex;
+	vertical-align: top;
+}
+
+.code1 {
+	display: flex;
+	width: 6ch;
+	justify-content: center;
+	align-items: center;
+	background-image: url('https://github.com/trikiw/alphagame/blob/main/circle.png?raw=true');
+	background-size: 100% 100%;
+}
+
+.code2 {
+	display: inline;
+	font-size: 300%;
+	font-weight: bold;
+	font-style: italic;
+}
+
+</style>
+
+<script>
+
+items.x1 = {
+	dontmod: '  122      443  ',
+	start: '  122      443  ',
+	finish: '3412214312344321',
+	digits: '1234 ',
+	onclick: function() {
+		this.stopped = true;
+		let a = document.querySelectorAll('.code1');
+		for(let i of [0,5,10,15])
+			a[i].classList.add('red');
+		document.querySelector('.objects').appendChild(items.k2.element);
+	},
+}
+
+items.r1 = {
+	room: 'Locked Room',
+	desc: `The only way out is by ${exit('r3','the front door')}.`,
+	start: true,
+	exits: {left:'r2', right:'r2'},
+}
+
+items.r2 = {
+	room: 'By the microwave',
+	desc: `This oven is all worn but seems to still work. On the wall is ${exit('r4','a paper')}.`,
+	exits: {left:'r1', right:'r1'},
+}
+
+items.r3 = {
+	room: 'the door',
+	desc: `It is closed and ${chest('c1','locked')}.`,
+	back: 'r1',
+}
+
+items.k1 = {
+	key: 'the key',
+	chest: 'c1',
+	parent: 'r1',
+	
+}
+
+items.c1 = {
+	onclick: function() {
+		console.log(document.querySelector('.exits'));
+		document.querySelector('.exits').insertAdjacentHTML('beforeend',listwrap(exit('r5','out')));
+	},
+}
+
+items.r4 = {
+	room: 'a sudoku puzzle',
+	desc: `Fill each row, column and the 4 subsquares with the numbers 1 to 4...<br/>${code('x1',0,2)}${code('x1',2,2)}<br/>
+		${code('x1',4,2)}${code('x1',6,2)}<br/>
+		${code('x1',8,2)}${code('x1',10,2)}<br/>
+		${code('x1',12,2)}${code('x1',14,2)}<br/>`,
+	back: 'r2',
+}
+
+items.r5 = {
+	room: 'Outside',
+	desc: 'You won!!',
+	exits: {in:'r1'},
+}
+
+items.k2 = {
+	key: 'a banana',
+}
+
+function loadGame() {
+	let a = items.r4.element.querySelectorAll('.code');
+	for(let i = 0; i < 8; i++)
+		a[i].classList.add((i%2 == 0) == (i < 4)? 'lime':'arctic');
+}
+
+</script>
+<style>
+
+.lime { background: #aef358 }
+.arctic { background: #82eefd }
+.red { background: black; color: white }
+
+</style>
+
+</head>
+<body onload='onLoad()'>
+
+<div id='screen'>
+<div id='room'></div>
+<div id='inven'></div>
+</div>
+
+</body>
+</html>
