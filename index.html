@@ -9,7 +9,6 @@
 
   class Pet {
     constructor() {
-      console.log('A');
       let config = {
         canvas: 'canvas',
         sprites: 'sprites',
@@ -58,7 +57,7 @@
         15,'right',0x46,408,340,
         8,'select',0x31,51,374,
         9,'start',0x32,68,374,
-        -1,'play',27,0,374,
+        //-1,'play',27,0,374,
       ];
       let key2pad = [],btn2pad = {};
       let mousedown = (e)=>this.padDown(btn2pad[e.target.getAttribute('id')],true);
@@ -126,24 +125,51 @@
       });
     }
 
-    load(lua) {
-      if(this.thread) this.play();
-      fengari.load(lua)();
-      this.run = fengari.load('pet:update() if _update then _update() end if _draw then _draw() pet:show() end');
-      fengari.load('pet=js.global.pet if _init then _init() pet:show() end pet:play()')();
+    play() {
+      document.querySelector('#play').classList.toggle('hide',true);
+      document.querySelector('#restart').classList.toggle('hide',true);
+      document.querySelector('#new').classList.toggle('hide',true);
+      document.querySelector('#pause').classList.toggle('hide',false);
+      this.thread = setInterval(()=>{
+        try {
+          this.run();
+        } catch(err) {
+          pause();
+          alert(err.toString());
+        }
+      },17);
     }
 
-    play() {
-      console.log('X');
-      if(fengari.load('return (_update or _draw) and true')()) {
-        if(this.thread) {
-          clearInterval(this.thread);
-          this.thread = null;
-        } else {
-          this.thread = setInterval(this.run,17);
-        }
+    pause() {
+      document.querySelector('#play').classList.toggle('hide',false);
+      document.querySelector('#restart').classList.toggle('hide',false);
+      document.querySelector('#new').classList.toggle('hide',false);
+      document.querySelector('#pause').classList.toggle('hide',true);
+      clearInterval(this.thread);
+      this.thread = null;
+    }
+
+    async start(b) {
+      if(b || !this.file) {
+        this.file = (await window.showOpenFilePicker())[0];
+        document.querySelector('#program').innerText = this.file.name;
       }
-      document.querySelector('#play').firstChild.replaceWith(this.playimgs[this.thread? 1:0]);
+      let f = await this.file.getFile();
+      try {
+        fengari.load(await f.text())();
+        this.run = fengari.load('pet:update() if _update then _update() end if _draw then _draw() pet:show() end');
+        fengari.load('pet=js.global.pet if _init then _init() pet:show() end')();
+      } catch(err) {
+        alert(err.toString());
+      }
+      if(fengari.load('return (_update or _draw) and true')()) {
+        pet.play();
+      } else {
+        document.querySelector('#play').classList.toggle('hide',true);
+        document.querySelector('#restart').classList.toggle('hide',false);
+        document.querySelector('#new').classList.toggle('hide',false);
+        document.querySelector('#pause').classList.toggle('hide',true);
+      }
     }
 
     keyDown(n,b) {
@@ -361,23 +387,13 @@
 
   function onLoad() {
     pet = new Pet();
-    //pet.load('function _draw() pet:frect(0,0,320,240,"red") pet:dstring(pet.pbtn[0] and "t" or "(nil)",0,0) end');
   }
 
   async function runFile() {
     if(!this.fileHandle) {
       [this.fileHandle] = await window.showOpenFilePicker();
     }
-    this.file = await fileHandle.getFile();
-    let contents = await this.file.text();
-    pet.load(contents);
-    return;
-    console.log('Z');
-    document.querySelector('input').files[0].value = '';
-    let fr = new FileReader();
-    fr.onload = ()=>pet.load(fr.result);
-    fr.readAsText(document.querySelector('input').files[0]);
-    console.log('Z1');
+    pet.load(await (await fileHandle.getFile()).text());
   }
   /*
   var angle;
@@ -459,15 +475,41 @@ body {
   bottom: 0;
 }
 
-#play {
-  position: absolute;
-  left: 0;
-  top: 0;
+#sel-group {
+  display: flex;
+  align-items: baseline;
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+.hide {
+  display: none;
+}
+
+.sel {
+  background: green;
+  padding: 5px;
+  margin: 5px;
+}
+
+.sel:hover {
+  background: blue;
+}
+
+.sel:active {
+  background: red;
 }
 
 </style>
 </head>
 <body onload='onLoad()'>
+  <div id='sel-group'style='display:flex'>
+    <div id='play' class='sel hide' onclick='pet.play()'>play</div>
+    <div id='pause' class='sel hide' onclick='pet.pause()'>pause</div>
+    <div id='program'></div>
+    <div id='restart' class='sel hide' onclick='pet.start(false)'>run</div>
+    <div id='new' class='sel' onclick='pet.start(true)'>new</div>
+  </div>
   <div id='board'>
     <div class='btn-group'>
       <div id='up' class='btn'></div>
@@ -484,14 +526,8 @@ body {
     </div>
     <div id='select' class='btn'></div>
     <div id='start' class='btn'></div>
-    <div id='play' class='btn'></div>
   </div>
   <img id='font' src="font.png" style='display: none'>
   <img id='sprites' src="sprites.png" style='display: none'>
-
-  <div style='display:flex; font-size: 18px'>
-    <button onclick='runFile()'>RUN</button>
-    <input type='file'>
-  </div>
 </body>
 </html>
